@@ -48,6 +48,10 @@ public class Graph implements Iterable<Node> {
 		succ = add(succ);
 		return pred.append(succ.prepend(pred, it), it);
 	}
+
+	public HashMap<Node, Node> getNodes() {
+		return nodes;
+	}
 		
 	public Node get(Node nd) {
 		return nodes.get(nd);

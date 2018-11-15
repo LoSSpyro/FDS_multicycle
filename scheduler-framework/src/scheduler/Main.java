@@ -35,5 +35,8 @@ public class Main {
 		System.out.printf("cost = %s%n", sched.cost());
 		
 		sched.draw("schedules/ALAP_" + args[0].substring(args[0].lastIndexOf("/")+1));
+
+		s = new FDS();
+		s.schedule(g);
 	}
 }

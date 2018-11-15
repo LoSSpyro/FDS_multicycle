@@ -21,7 +21,12 @@ public class ASAP extends Scheduler {
 
 		while (queue.size() > 0) {
 			qq = new HashMap<Node, Interval>();
-
+			System.out.println("Nodes in Queue: ");
+			for (Node n : queue.keySet()) {
+				System.out.print(n.id + " ");
+				System.out.print("[" + queue.get(n).lbound + ", " + queue.get(n).ubound + "); ");
+			}
+			System.out.println("");
 			for (Node nd : queue.keySet()) {
 				Interval slot = queue.get(nd);
 				schedule.add(nd, slot);
