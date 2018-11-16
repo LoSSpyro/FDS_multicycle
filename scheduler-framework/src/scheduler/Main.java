@@ -36,7 +36,7 @@ public class Main {
 		
 		sched.draw("schedules/ALAP_" + args[0].substring(args[0].lastIndexOf("/")+1));
 
-		s = new FDS();
+		s = new FDS(rc);
 		s.schedule(g);
 	}
 }
