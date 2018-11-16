@@ -2,9 +2,6 @@ package scheduler;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
-
-import javax.smartcardio.ResponseAPDU;
 
 public class FDS extends Scheduler {
 
@@ -80,6 +77,7 @@ public class FDS extends Scheduler {
 	 * @param graph
 	 * @return
 	 */
+	@SuppressWarnings("unchecked")
 	private Map<String, HashMap<Integer, Float>> calcResourceUsage(final Graph graph) {
 		HashMap<String, HashMap<Integer, Float>> resUsage = new HashMap<String, HashMap<Integer, Float>>();
 		for (Node n : graph.getNodes().keySet()) {
@@ -113,7 +111,6 @@ public class FDS extends Scheduler {
 				}
 			}
 		}
-		
 		return resUsage;
 	}
 	
@@ -145,9 +142,10 @@ public class FDS extends Scheduler {
 			 */
 			for (Interval delay = new Interval(range.lbound, range.lbound + n.getDelay()-1); delay.ubound <= range.ubound; delay = delay.align_ubound(delay.ubound+1)) {
 				for (int i = delay.lbound; i <= delay.ubound; i++) {
-					probability = timeProb.containsKey(i) ? timeProb.get(i) : 0;
+					probability = timeProb.containsKey(i) ? timeProb.get(i) : 0f;
 					/**
-					 * When the next possible Interval contains the operation, die Probability gets increased
+					 * When the next possible Interval (in the mobility interval)
+					 * contains the operation, the Probability gets increased
 					 */
 					probability += (float) (1./(mobility+1));
 					timeProb.put(i, probability);
