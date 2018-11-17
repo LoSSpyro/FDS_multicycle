@@ -1,12 +1,49 @@
 package scheduler;
 
 public class Main {
+	
+	private static Graph g;
+	private static String arg0;
 
 	public static void main(String[] args) {
-		testASAPFixed(args);
+		parse(args);
+		testALAPFixed();
+	}
+
+	public static void testASAPFixed() {
+		ASAP asap = new ASAP();
+		Schedule sched = asap.schedule(g);
+		System.out.printf("%nASAP%n%s%n", sched.diagnose());
+		System.out.printf("cost = %s%n", sched.cost());
+		
+		sched.draw("schedules/ASAP_" + arg0.substring(arg0.lastIndexOf("/")+1));
+		
+		ASAP_Fixed asap_fixed = new ASAP_Fixed();
+		Schedule partialSchedule = new Schedule();
+		sched = asap_fixed.schedule(g, partialSchedule);
+		System.out.printf("%nASAP_Fixed%n%s%n", sched.diagnose());
+		System.out.printf("cost = %s%n", sched.cost());
+		
+		sched.draw("schedules/ASAP_Fixed_" + arg0.substring(arg0.lastIndexOf("/")+1));
+	}
+	public static void testALAPFixed() {
+		ALAP alap = new ALAP();
+		Schedule sched = alap.schedule(g);
+		System.out.printf("%nALAP%n%s%n", sched.diagnose());
+		System.out.printf("cost = %s%n", sched.cost());
+		
+		sched.draw("schedules/ALAP_" + arg0.substring(arg0.lastIndexOf("/")+1));
+		
+		ALAP_Fixed alap_fixed = new ALAP_Fixed();
+		Schedule partialSchedule = new Schedule();
+		sched = alap_fixed.schedule(g, partialSchedule);
+		System.out.printf("%nALAP_Fixed%n%s%n", sched.diagnose());
+		System.out.printf("cost = %s%n", sched.cost());
+		
+		sched.draw("schedules/ALAP_Fixed_" + arg0.substring(arg0.lastIndexOf("/")+1));
 	}
 	
-	public static void testASAPFixed(String[] args) {
+	public static void parse(String[] args) {
 		RC rc = null;
 		if (args.length>1){
 			System.out.println("Reading resource constraints from "+args[1]+"\n");
@@ -23,24 +60,10 @@ public class Main {
 			System.out.println();
 		}
 		
-		Graph g = dr.parse(args[0]);
+		g = dr.parse(args[0]);
 		System.out.printf("%s%n", g.diagnose());
 		
-		
-		
-		ASAP asap = new ASAP();
-		Schedule sched = asap.schedule(g);
-		System.out.printf("%nASAP%n%s%n", sched.diagnose());
-		System.out.printf("cost = %s%n", sched.cost());
-		
-		sched.draw("schedules/ASAP_" + args[0].substring(args[0].lastIndexOf("/")+1));
-		
-		ASAP_Fixed asap_fixed = new ASAP_Fixed();
-		sched = asap_fixed.schedule(g, new Schedule());
-		System.out.printf("%nASAP_Fixed%n%s%n", sched.diagnose());
-		System.out.printf("cost = %s%n", sched.cost());
-		
-		sched.draw("schedules/ASAP_Fixed_" + args[0].substring(args[0].lastIndexOf("/")+1));
+		arg0 = args[0];
 	}
 	
 	public static void defaultMain(String[] args) {

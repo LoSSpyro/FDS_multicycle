@@ -8,7 +8,7 @@ public class ALAP extends Scheduler {
 	/**
 	 * Maximum schedule length
 	 */
-	private final int lmax;
+	protected final int lmax;
 	
 	public ALAP() {
 		lmax = 0;

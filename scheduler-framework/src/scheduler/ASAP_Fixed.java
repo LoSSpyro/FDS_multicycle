@@ -63,9 +63,9 @@ public class ASAP_Fixed extends ASAP {
 						return null;
 					}
 				}
-				
 			}
 			
+			// Schedule node and remove it from the queue
 			schedule.add(candidate, slot);
 			queue.remove(candidate);
 			
