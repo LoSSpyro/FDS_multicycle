@@ -44,7 +44,7 @@ public class ASAP_Fixed extends ASAP {
 				return null;
 			}
 			
-			// Determine and set earliest possible starting time
+			// Determine earliest possible starting time
 			int maxPredEnd = Integer.MIN_VALUE;
 			for (Node predecessor : candidate.allPredecessors().keySet()) {
 				int predEnd = schedule.getNodes().get(predecessor).ubound;
@@ -53,6 +53,19 @@ public class ASAP_Fixed extends ASAP {
 				}
 			}
 			Interval slot = new Interval(maxPredEnd + 1, maxPredEnd + candidate.getDelay());
+			
+			// Check legality of found slot with successors (data dependencies)
+			for (Node successor : candidate.allSuccessors().keySet()) {
+				if (schedule.containsNode(successor)) {
+					int succBegin = schedule.getNodes().get(successor).lbound;
+					if (succBegin <= slot.ubound) {
+						System.out.println("Found critical timing problem. No legal schedule possible with given partial schedule.");
+						return null;
+					}
+				}
+				
+			}
+			
 			schedule.add(candidate, slot);
 			queue.remove(candidate);
 			
