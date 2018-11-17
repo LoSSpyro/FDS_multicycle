@@ -44,8 +44,21 @@ public class Schedule {
 		tsort_res = new HashMap<RT, Map<Integer, Resource>>();
 	}
 	
+	/**
+	 * Returns the map of all scheduled nodes and their time slots
+	 * @return A map of all scheduled nodes and their time slots
+	 */
 	public Map<Node, Interval> getNodes() {
 		return nodes;
+	}
+	
+	/**
+	 * Returns true if the given node is scheduled
+	 * @param node The node which is to be looked for in the schedule
+	 * @return True if the given node is scheduled, false otherwise
+	 */
+	public boolean containsNode(Node node) {
+		return nodes.containsKey(node);
 	}
 	
 	/**
