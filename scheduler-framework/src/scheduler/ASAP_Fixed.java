@@ -3,16 +3,17 @@ package scheduler;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ASAP extends Scheduler {
+public class ASAP_Fixed extends ASAP {
 	
-	public Schedule schedule(final Graph graph) {
+	public Schedule scheduleWithFixedNodes(final Graph graph, final Schedule partialSchedule) {
 		Map<Node, Interval> queue = new HashMap<Node, Interval>();
 		Map<Node, Interval> newQueue;
 		Map<Node, Interval> minSlot = new HashMap<Node, Interval>();
-		Schedule schedule = new Schedule();
-	
+		Schedule schedule = partialSchedule.clone();
+		
+		// add all root nodes that are not yet scheduled to queue
 		for (Node graphNode : graph) {
-			if (graphNode.root()) {
+			if (graphNode.root() && !schedule.getNodes().keySet().contains(graphNode)) {
 				queue.put(graphNode, new Interval(0, graphNode.getDelay() - 1));
 			}
 		}

@@ -44,6 +44,10 @@ public class Schedule {
 		tsort_res = new HashMap<RT, Map<Integer, Resource>>();
 	}
 	
+	public Map<Node, Interval> getNodes() {
+		return nodes;
+	}
+	
 	/**
 	 * Add a node and to the schedule during the given interval
 	 * @param nd - the node to be scheduled
