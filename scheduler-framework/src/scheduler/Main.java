@@ -6,8 +6,9 @@ public class Main {
 	private static String arg0;
 
 	public static void main(String[] args) {
-		parse(args);
-		testALAPFixed();
+		//parse(args);
+		
+		defaultMain(args);
 	}
 
 	public static void testASAPFixed() {

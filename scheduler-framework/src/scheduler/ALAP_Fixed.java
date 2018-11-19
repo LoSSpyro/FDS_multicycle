@@ -6,6 +6,13 @@ import java.util.Set;
 
 public class ALAP_Fixed extends ALAP {
 	
+	public ALAP_Fixed() {
+		super();
+	}
+	public ALAP_Fixed(int lmax) {
+		super(lmax);
+	}
+	
 	public Schedule schedule(final Graph graph, final Schedule partialSchedule) {
 		Set<Node> queue = new HashSet<Node>();
 		Schedule schedule = partialSchedule.clone();
@@ -61,7 +68,9 @@ public class ALAP_Fixed extends ALAP {
 				if (schedule.containsNode(predecessor)) {
 					int predEnd = schedule.getNodes().get(predecessor).ubound;
 					if (predEnd >= slot.lbound) {
-						System.out.println("Found critical timing problem. No legal schedule possible with given partial schedule.");
+						System.out.println(slot.toString());
+						System.out.println(predEnd);
+						System.err.println("Found critical timing problem. No legal schedule possible with given partial schedule.");
 						return null;
 					}
 				}

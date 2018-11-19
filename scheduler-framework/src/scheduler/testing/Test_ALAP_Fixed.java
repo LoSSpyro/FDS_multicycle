@@ -32,40 +32,40 @@ class Test_ALAP_Fixed {
 
 	@BeforeEach
 	void setUp() throws Exception {
-		reference = new ASAP().schedule(graph);
+		reference = new ALAP().schedule(graph);
 		partialSchedule = new Schedule();
 	}
 
 	@Test
-	void testASAPNoFixed() {
-		Schedule asap_fixed = new ASAP_Fixed().schedule(graph, partialSchedule);
+	void testALAPNoFixed() {
+		Schedule alap_fixed = new ALAP_Fixed(10).schedule(graph, partialSchedule);
 		
-		assertEquals(asap_fixed.length(), reference.length(),
-				"Schedule should be the same length as the reference ASAP schedule");
-		checkIntervalsAndDependencies(asap_fixed);
+		assertEquals(alap_fixed.length(), reference.length(),
+				"Schedule should be the same length as the reference ALAP schedule");
+		checkIntervalsAndDependencies(alap_fixed);
 	}
 	
 	@Test
-	void testASAPOneFixed() {
+	void testALAPOneFixed() {
 		Iterator<Node> iter = graph.iterator();
 		Node n1 = null;
 		while (iter.hasNext()) {
 			n1 = iter.next();
 			if (n1.id.equals("N5_ADD")) {
-				partialSchedule.add(n1, new Interval(9, 9));
+				partialSchedule.add(n1, new Interval(7, 7));
 				break;
 			}
 		}
-		Schedule asap_fixed = new ASAP_Fixed().schedule(graph, partialSchedule);
+		Schedule alap_fixed = new ALAP_Fixed(10).schedule(graph, partialSchedule);
 		
-		assertTrue(asap_fixed.length() >= reference.length(),
-				"Schedule cannot be shorter than the reference ASAP schedule");
-		assertEquals(asap_fixed.length().intValue(), 12, "Optimal schedule under the given constraints wasn't found");
-		checkIntervalsAndDependencies(asap_fixed);
+		assertTrue(alap_fixed.length() >= reference.length(),
+				"Schedule cannot be shorter than the reference ALAP schedule");
+		assertEquals(alap_fixed.length().intValue(), 10, "Optimal schedule under the given constraints wasn't found");
+		checkIntervalsAndDependencies(alap_fixed);
 	}
 	
 	@Test
-	void testASAPTwoFixed() {
+	void testALAPTwoFixed() {
 		Iterator<Node> iter = graph.iterator();
 		Node n1 = null, n2 = null;
 		while ((n1 == null || n2 == null) && iter.hasNext()) {
@@ -77,9 +77,9 @@ class Test_ALAP_Fixed {
 				partialSchedule.add(candidate, new Interval(9, 9));
 			}
 		}
-		Schedule asap_fixed = new ASAP_Fixed().schedule(graph, partialSchedule);
+		Schedule alap_fixed = new ALAP_Fixed(10).schedule(graph, partialSchedule);
 		
-		assertTrue(asap_fixed == null,
+		assertTrue(alap_fixed == null,
 				"Schedule was delivered where no legal schedule is possible");
 	}
 	
