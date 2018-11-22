@@ -2,74 +2,149 @@ package scheduler;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 public class FDS extends Scheduler {
 
-	Map<Node, Interval> node_mobility;
+	Map<Node, Interval> mobilityIntervals;
 	Map<Node, HashMap<Integer, Float>> probabilities;
 	Map<String, HashMap<Integer, Float>> resource_usage;
 	
-	private final int lmax;
+	private final int lmax; // 
 	
-	private Scheduler asap, alap;
-	private Schedule asap_sched, alap_sched;
 	private final RC resource_graph;
 	
-	public FDS(final RC rc) {
-		lmax = 0;
+	public FDS(final RC rc, int lmax) {
+		this.lmax = lmax;
 		resource_graph = rc;
 	}
 
 	@Override
-	public Schedule schedule (final Graph graph) {
-		node_mobility = mobility(graph);
-		probabilities = calcProbabilites();
-
-		resource_usage = calcResourceUsage(graph);
-		
-		for (Node n : node_mobility.keySet()) {
-			System.out.print("Node " + n.id + ", Mobility: " + node_mobility.get(n) + "\n");
+	public Schedule schedule(final Graph graph) {
+		// Add all nodes to queue
+		Set<Node> queue = new TreeSet<Node>();
+		for (Node node : graph.getNodes().keySet()) {
+			queue.add(node);
 		}
 		
-		for (Node n : probabilities.keySet()) {
-			System.out.println("\nNode " + n);
-			for (Integer i : probabilities.get(n).keySet()) {
-				System.out.println("Timestep: " + i + " Prob: " + probabilities.get(n).get(i));
+		Schedule schedule = new Schedule();
+		
+		while (queue.size() > 0) {
+			// Determine node mobility with respect to fixed operations
+			mobilityIntervals = mobility(graph, schedule);
+			// Compute all p_i,t and q_k,t
+			probabilities = calcProbabilites();
+			resource_usage = calcResourceUsage(graph);
+			
+			// Evaluate Set K of all operations v_i with mobility_i > 0
+			Set<Node> candidates = new TreeSet<Node>();
+			for (Node node : queue) {
+				Interval slot = mobilityIntervals.get(node);
+				if (slot.ubound - slot.lbound > 0) { // mobility > 0
+					candidates.add(node);
+				}
 			}
-		}
-		
-		
-		for (String res : resource_usage.keySet()) {
-			System.out.println("Resourge usage prob. on res: " + res);
-			for (Integer t : resource_usage.get(res).keySet()) {
-				System.out.println("In timestep " + t + ": " + resource_usage.get(res).get(t));
+			
+			// Compute sum of forces of v_i for all time steps t in [tau_asap(v_i), tau_alap(v_i)];
+			Node minForceNode = null;
+			int minForceTime = -1;
+			double minForce = Double.MAX_VALUE;
+			for (Node node : candidates) {
+				for (int time = 0; time < lmax; time++) {
+					double forceSum = 0;
+					// TODO compute sum of forces (for node and time), store in forceSum
+					
+					// keep track of lowest force node
+					if (forceSum < minForce) {
+						minForceNode = node;
+						minForceTime = time;
+						minForce = forceSum;
+					}
+				}
 			}
+			
+			// Plan operation with smallest force
+			Interval slot = new Interval(minForceTime, minForceTime + minForceNode.getDelay());
+			schedule.add(minForceNode, slot);
+			queue.remove(minForceNode);
 		}
-		return null;
+		
+		return schedule;
 	}
-
-	private HashMap<Node, Interval> mobility(final Graph graph) {
+	
+	
+	private HashMap<Node, Interval> mobility(final Graph graph, final Schedule partialSchedule) {
 		HashMap<Node, Interval> mob = new HashMap<Node, Interval>();
 		
-		asap = new ASAP();
-		asap_sched = asap.schedule(graph);
-
-		alap = new ALAP();
-		alap_sched = alap.schedule(graph);
+		Schedule asap = new ASAP_Fixed().schedule(graph, partialSchedule);
+		Schedule alap = new ALAP_Fixed(lmax).schedule(graph, partialSchedule);
 		
 		for (Node n : graph.getNodes().keySet()) {
 			System.out.println(n);
-			System.out.println("ASAP: " + asap_sched.slot(n));
-			System.out.println("ALAP: " + alap_sched.slot(n));
-			System.out.println("Mobility: " + (alap_sched.slot(n).lbound - asap_sched.slot(n).lbound));
+			System.out.println("ASAP: " + asap.slot(n));
+			System.out.println("ALAP: " + alap.slot(n));
+			System.out.println("Mobility: " + (alap.slot(n).lbound - asap.slot(n).lbound));
 			mob.put(n,
 					new Interval(
-							asap_sched.slot(n).lbound,
-							alap_sched.slot(n).ubound));
+							asap.slot(n).lbound,
+							alap.slot(n).ubound));
 		}
 		
 		return mob;
 	}
+	
+
+	/**
+	 * 
+	 * TODO:It's wrong if
+	 * one operation has multiple Resources-> Every resource has the same prob.
+	 * TODO:check if ASAP and ALAP are correkt if for ex.Mul->Res1,Res2
+	 * 
+	 * @param graph
+	 * @return
+	 */
+	/*@SuppressWarnings("unchecked")
+	private Map<RT, HashMap<Integer, Float>> calcResourceUsage(final Graph graph) {
+		HashMap<RT, HashMap<Integer, Float>> resUsage = new HashMap<RT, HashMap<Integer, Float>>();
+		for (Node n : graph.getNodes().keySet()) {
+			System.out.println("\nRESOURCEUSAGE for Node: " + n + " on " + resource_graph.getRes(n.getRT()));
+		}
+		// System.out.println("Resource " + resource + " on RT: " +
+		// resource_graph.getAllRes().get(resource));
+		for (Node n : graph.getNodes().keySet()) {
+			/**
+			 * 
+			 * if Node n works on one of the resources
+			 * 
+			 *
+			HashMap<Integer, Float> timeUsage = (HashMap<Integer, Float>) probabilities.get(n).clone();
+			/**
+			 * 
+			 * Add the probabilty of timeUsage of Node n to the resource Usage
+			 * 
+			 *
+			if (!resUsage.containsKey(n.getRT())) {
+				resUsage.put(n.getRT(), timeUsage);
+			} else {
+				HashMap<Integer, Float> currentTimeUsage = resUsage.get(n.getRT());
+				/**
+				 * 
+				 * Do this for each timestep available in the Nodes Execution Probabilities
+				 * 
+				 * TODO: Possibly can be simplified, when each Node hast every timestep in
+				 * 
+				 * the Probabiliies Map. Currently each Node just has the prob. for his
+				 * mobilityInterval
+				 * 
+				 *
+				timeUsage.forEach((t, prob) -> currentTimeUsage.merge(t, prob, (v1, v2) -> v1 + v2));
+				resUsage.put(n.getRT(), currentTimeUsage);
+			}
+		}
+		return resUsage;
+	}*/
+
 	
 	/**
 	 * TODO: It's wrong if one operation has multiple Resources -> Every resource has the same prob.
@@ -128,9 +203,9 @@ public class FDS extends Scheduler {
 		/*
 		 * iterate over every Node
 		 */
-		for (Node n : node_mobility.keySet()) {
+		for (Node n : mobilityIntervals.keySet()) {
 			timeProb = new HashMap<Integer, Float>();
-			Interval range = node_mobility.get(n);
+			Interval range = mobilityIntervals.get(n);
 			/**
 			 * Calculate the mobility (on how many different timesteps can an operation be executed)
 			 */
@@ -157,6 +232,27 @@ public class FDS extends Scheduler {
 		//to get the pobabilities (0) for timesteps, that are not contained in the possible scheduled Intervals of a
 		//operation
 		return probs;
+	}
+	
+	public void probDebug() {
+		for (Node n : mobilityIntervals.keySet()) {
+			System.out.print("Node " + n.id + ", Mobility: " + mobilityIntervals.get(n) + "\n");
+		}
+		
+		for (Node n : probabilities.keySet()) {
+			System.out.println("\nNode " + n);
+			for (Integer i : probabilities.get(n).keySet()) {
+				System.out.println("Timestep: " + i + " Prob: " + probabilities.get(n).get(i));
+			}
+		}
+		
+		
+		for (String res : resource_usage.keySet()) {
+			System.out.println("Resourge usage prob. on res: " + res);
+			for (Integer t : resource_usage.get(res).keySet()) {
+				System.out.println("In timestep " + t + ": " + resource_usage.get(res).get(t));
+			}
+		}
 	}
 
 }
