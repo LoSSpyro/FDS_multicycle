@@ -52,9 +52,8 @@ public class FDS extends Scheduler {
 			double minForce = Double.MAX_VALUE;
 			for (Node node : candidates) {
 				for (int time = 0; time < lmax; time++) {
-					double forceSum = 0;
-					// TODO compute sum of forces (for node and time), store in forceSum
-					
+					// compute sum of forces (for node and time)
+					double forceSum = computeForces(node, time);
 					// keep track of lowest force node
 					if (forceSum < minForce) {
 						minForceNode = node;
@@ -71,6 +70,12 @@ public class FDS extends Scheduler {
 		}
 		
 		return schedule;
+	}
+	
+	
+	private double computeForces(Node node, int time) {
+		// TODO implement
+		return 0.;
 	}
 	
 	
