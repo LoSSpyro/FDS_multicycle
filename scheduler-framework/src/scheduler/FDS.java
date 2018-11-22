@@ -43,17 +43,19 @@ public class FDS extends Scheduler {
 				Interval slot = mobilityIntervals.get(node);
 				if (slot.ubound - slot.lbound > 0) { // mobility > 0
 					candidates.add(node);
+				} else {
+					// TODO schedule directly
 				}
 			}
 			
 			// Compute sum of forces of v_i for all time steps t in [tau_asap(v_i), tau_alap(v_i)];
 			Node minForceNode = null;
 			int minForceTime = -1;
-			double minForce = Double.MAX_VALUE;
+			float minForce = Float.MAX_VALUE;
 			for (Node node : candidates) {
 				for (int time = 0; time < lmax; time++) {
 					// compute sum of forces (for node and time)
-					double forceSum = computeForces(node, time);
+					float forceSum = computeForces(schedule, node, time);
 					// keep track of lowest force node
 					if (forceSum < minForce) {
 						minForceNode = node;
@@ -73,9 +75,39 @@ public class FDS extends Scheduler {
 	}
 	
 	
-	private double computeForces(Node node, int time) {
+	private float computeForces(Schedule schedule, Node node, int time) {
 		// TODO implement
-		return 0.;
+		
+		
+		// Self force
+		float q_node = resource_usage.get(node.getRT()).get(time);
+		float q_avg = 0;
+		Interval mobility = mobilityIntervals.get(node);
+		for (int i = mobility.lbound; i <= mobility.ubound; i++) {
+			q_avg += resource_usage.get(node.getRT()).get(i);
+		}
+		q_avg /= mobility.ubound - mobility.lbound - node.getDelay() + 1;
+		float selfForce = q_node - q_avg;
+		
+		// pseudo-plan node
+		
+		// Predecessor forces
+		float predForceSum = 0;
+		for (Node predecessor : node.allPredecessors().keySet()) {
+			float predForce = 0;
+			mobility = mobilityIntervals.get(node);
+			for (int i = mobility.lbound; i <= mobility.ubound; i++) {
+				predForce += resource_usage.get(node.getRT()).get(i);
+			}
+			predForce /= mobility.ubound - mobility.lbound - node.getDelay() + 1;
+		}
+		// Successor forces
+		float succForceSum = 0;
+		for (Node successor : node.allSuccessors().keySet()) {
+			
+		}
+		
+		return selfForce + predForceSum + succForceSum;
 	}
 	
 	
