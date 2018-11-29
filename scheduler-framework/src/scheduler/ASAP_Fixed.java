@@ -6,7 +6,30 @@ import java.util.Set;
 
 public class ASAP_Fixed extends ASAP {
 	
-	public Schedule schedule(final Graph graph, final Schedule partialSchedule) {
+	/**
+	 * Maximum schedule length
+	 */
+	protected final int lmax;
+	
+	public ASAP_Fixed() {
+		super();
+		lmax = 0;
+	}
+	public ASAP_Fixed(int lmax) {
+		super();
+		this.lmax = lmax-1;
+	}
+	
+	public Schedule schedule(final Graph graph) {
+		try {
+			return schedule(graph, new Schedule());
+		} catch (IllegalConstraintsException e) {
+			e.printStackTrace();
+			return null;
+		}
+	}
+	
+	public Schedule schedule(final Graph graph, final Schedule partialSchedule) throws IllegalConstraintsException {
 		Set<Node> queue = new HashSet<Node>();
 		Schedule schedule = partialSchedule.clone();
 		
@@ -31,7 +54,7 @@ public class ASAP_Fixed extends ASAP {
 			while (candidate == null && iter.hasNext()) {
 				Node node = iter.next();
 				boolean predUnplanned = false;
-				for (Node predecessor : node.allPredecessors().keySet()) {
+				for (Node predecessor : node.predecessors()) {
 					if (!schedule.containsNode(predecessor)) {
 						predUnplanned = true;
 						break;
@@ -46,7 +69,7 @@ public class ASAP_Fixed extends ASAP {
 			
 			// Determine earliest possible starting time
 			int maxPredEnd = Integer.MIN_VALUE;
-			for (Node predecessor : candidate.allPredecessors().keySet()) {
+			for (Node predecessor : candidate.predecessors()) {
 				int predEnd = schedule.getNodes().get(predecessor).ubound;
 				if (predEnd > maxPredEnd) {
 					maxPredEnd = predEnd; 
@@ -55,12 +78,17 @@ public class ASAP_Fixed extends ASAP {
 			Interval slot = new Interval(maxPredEnd + 1, maxPredEnd + candidate.getDelay());
 			
 			// Check legality of found slot with successors (data dependencies)
-			for (Node successor : candidate.allSuccessors().keySet()) {
+			//System.out.println("ASAP_Fixed min: " + schedule.min() + ", max: " + schedule.max());
+			if (slot.lbound < 0 || slot.ubound > lmax || schedule.min() < 0 || (lmax > 0 && schedule.max() > lmax)) {
+				System.out.println("Found critical timing problem. No legal schedule possible with given partial schedule.");
+				throw new IllegalConstraintsException();
+			}
+			for (Node successor : candidate.successors()) {
 				if (schedule.containsNode(successor)) {
 					int succBegin = schedule.getNodes().get(successor).lbound;
-					if (succBegin <= slot.ubound) {
+					if (succBegin <= slot.ubound || succBegin < 0) {
 						System.out.println("Found critical timing problem. No legal schedule possible with given partial schedule.");
-						return null;
+						throw new IllegalConstraintsException();
 					}
 				}
 			}

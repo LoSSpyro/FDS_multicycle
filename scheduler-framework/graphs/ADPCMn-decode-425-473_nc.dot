@@ -1,0 +1,21 @@
+digraph depgraph {
+n0_SH [label="465:ISHL"];
+n1_AND [label="455:IAND"];
+n1_AND -> n0_SH;
+n2_MUL [label="464:IMUL"];
+n2_MUL -> n0_SH;
+n3_OR [label="466:IOR"];
+n0_SH -> n3_OR;
+n4_MEM [label="442:DMA_STORE"];
+n5_MEM [label="441:DMA_LOAD"];
+n5_MEM -> n4_MEM;
+n5_MEM -> n1_AND;
+n6_SUB [label="461:ISUB"];
+n7_SUB [label="459:ISUB"];
+n7_SUB -> n6_SUB;
+n6_SUB -> n2_MUL;
+n8_ADD [label="469:IADD"];
+n9_CMP [label="428:IFGE"];
+n10_ADD [label="448:IADD"];
+n11_ADD [label="435:IADD"];
+}

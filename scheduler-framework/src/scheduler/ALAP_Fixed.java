@@ -13,7 +13,16 @@ public class ALAP_Fixed extends ALAP {
 		super(lmax);
 	}
 	
-	public Schedule schedule(final Graph graph, final Schedule partialSchedule) {
+	public Schedule schedule(final Graph graph) {
+		try {
+			return schedule(graph, new Schedule());
+		} catch (IllegalConstraintsException e) {
+			e.printStackTrace();
+			return null;
+		}
+	}
+	
+	public Schedule schedule(final Graph graph, final Schedule partialSchedule) throws IllegalConstraintsException {
 		Set<Node> queue = new HashSet<Node>();
 		Schedule schedule = partialSchedule.clone();
 		Integer min = lmax;
@@ -40,7 +49,7 @@ public class ALAP_Fixed extends ALAP {
 			while (candidate == null && iter.hasNext()) {
 				Node node = iter.next();
 				boolean succUnplanned = false;
-				for (Node successor : node.allSuccessors().keySet()) {
+				for (Node successor : node.successors()) {
 					if (!schedule.containsNode(successor)) {
 						succUnplanned = true;
 						break;
@@ -55,7 +64,7 @@ public class ALAP_Fixed extends ALAP {
 			
 			// Determine latest possible ending time
 			int minSuccBegin = Integer.MAX_VALUE;
-			for (Node successor : candidate.allSuccessors().keySet()) {
+			for (Node successor : candidate.successors()) {
 				int succBegin = schedule.getNodes().get(successor).lbound;
 				if (succBegin < minSuccBegin) {
 					minSuccBegin = succBegin;
@@ -64,14 +73,16 @@ public class ALAP_Fixed extends ALAP {
 			Interval slot = new Interval(minSuccBegin - candidate.getDelay(), minSuccBegin - 1);
 			
 			// Check legality of found slot with predecessors (data dependencies)
-			for (Node predecessor : candidate.allPredecessors().keySet()) {
+			if (schedule.min() < 0 || schedule.max() > lmax) {
+				System.out.println("Found critical timing problem. No legal schedule possible with given partial schedule.");
+				throw new IllegalConstraintsException();
+			}
+			for (Node predecessor : candidate.predecessors()) {
 				if (schedule.containsNode(predecessor)) {
 					int predEnd = schedule.getNodes().get(predecessor).ubound;
-					if (predEnd >= slot.lbound) {
-						System.out.println(slot.toString());
-						System.out.println(predEnd);
-						System.err.println("Found critical timing problem. No legal schedule possible with given partial schedule.");
-						return null;
+					if (predEnd >= slot.lbound || predEnd >= lmax) {
+						System.out.println("Found critical timing problem. No legal schedule possible with given partial schedule.");
+						throw new IllegalConstraintsException();
 					}
 				}
 			}

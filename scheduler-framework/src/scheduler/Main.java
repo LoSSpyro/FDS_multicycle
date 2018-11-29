@@ -20,8 +20,7 @@ public class Main {
 		sched.draw("schedules/ASAP_" + arg0.substring(arg0.lastIndexOf("/")+1));
 		
 		ASAP_Fixed asap_fixed = new ASAP_Fixed();
-		Schedule partialSchedule = new Schedule();
-		sched = asap_fixed.schedule(g, partialSchedule);
+		sched = asap_fixed.schedule(g);
 		System.out.printf("%nASAP_Fixed%n%s%n", sched.diagnose());
 		System.out.printf("cost = %s%n", sched.cost());
 		
@@ -36,8 +35,7 @@ public class Main {
 		sched.draw("schedules/ALAP_" + arg0.substring(arg0.lastIndexOf("/")+1));
 		
 		ALAP_Fixed alap_fixed = new ALAP_Fixed();
-		Schedule partialSchedule = new Schedule();
-		sched = alap_fixed.schedule(g, partialSchedule);
+		sched = alap_fixed.schedule(g);
 		System.out.printf("%nALAP_Fixed%n%s%n", sched.diagnose());
 		System.out.printf("cost = %s%n", sched.cost());
 		
@@ -101,7 +99,15 @@ public class Main {
 		
 		sched.draw("schedules/ALAP_" + args[0].substring(args[0].lastIndexOf("/")+1));
 
-		s = new FDS(rc, 20);
-		s.schedule(g);
+		s = new FDS(rc, 13);
+		System.out.println("\n\n\nStarting FD scheduling\n");
+		Schedule fdsSched = s.schedule(g);
+		if (fdsSched == null) {
+			System.err.println("FD Scheduling failed");
+			return;
+		}
+		//fdsSched.draw("schedules/FDS_" + args[0].substring(args[0].lastIndexOf("/")+1));
+		System.out.println("\n\n\nCost: " + fdsSched.cost());
+		System.out.println(fdsSched.diagnose());
 	}
 }

@@ -1,15 +1,15 @@
 package scheduler;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 
 public class FDS extends Scheduler {
 
 	Map<Node, Interval> mobilityIntervals;
-	Map<Node, HashMap<Integer, Float>> probabilities;
-	Map<String, HashMap<Integer, Float>> resource_usage;
+	Map<Node, Map<Integer, Float>> probabilities;
+	Map<RT, Map<Integer, Float>> resourceUsage;
 	
 	private final int lmax; // 
 	
@@ -23,7 +23,7 @@ public class FDS extends Scheduler {
 	@Override
 	public Schedule schedule(final Graph graph) {
 		// Add all nodes to queue
-		Set<Node> queue = new TreeSet<Node>();
+		Set<Node> queue = new HashSet<Node>();
 		for (Node node : graph.getNodes().keySet()) {
 			queue.add(node);
 		}
@@ -32,42 +32,66 @@ public class FDS extends Scheduler {
 		
 		while (queue.size() > 0) {
 			// Determine node mobility with respect to fixed operations
-			mobilityIntervals = mobility(graph, schedule);
+			try {
+				mobilityIntervals = calcMobilities(graph, schedule);
+			} catch (IllegalConstraintsException e) {
+				e.printStackTrace();
+				System.err.println("Impossible to schedule or invalid decision was made during scheduling. Check input and implementation");
+				return null;
+			}
 			// Compute all p_i,t and q_k,t
-			probabilities = calcProbabilites();
-			resource_usage = calcResourceUsage(graph);
+			probabilities = calcProbabilites(mobilityIntervals);
+			resourceUsage = calcResourceUsage(graph, probabilities);
 			
 			// Evaluate Set K of all operations v_i with mobility_i > 0
-			Set<Node> candidates = new TreeSet<Node>();
+			Set<Node> removeFromQueue = new HashSet<Node>();
 			for (Node node : queue) {
-				Interval slot = mobilityIntervals.get(node);
-				if (slot.ubound - slot.lbound > 0) { // mobility > 0
-					candidates.add(node);
-				} else {
-					// TODO schedule directly
+				Interval mobility = mobilityIntervals.get(node);
+				if (mobility.ubound - mobility.lbound - node.getDelay() + 1 <= 0) { // mobility > 0
+					schedule.add(node, new Interval(mobility.lbound, mobility.lbound + node.getDelay() - 1));
+					removeFromQueue.add(node);
 				}
+			}
+			for (Node node : removeFromQueue) {
+				queue.remove(node);
+			}
+			if (queue.isEmpty()) {
+				return schedule;
 			}
 			
 			// Compute sum of forces of v_i for all time steps t in [tau_asap(v_i), tau_alap(v_i)];
 			Node minForceNode = null;
-			int minForceTime = -1;
+			int minForceTime = 0;
 			float minForce = Float.MAX_VALUE;
-			for (Node node : candidates) {
-				for (int time = 0; time < lmax; time++) {
+			for (Node node : queue) {
+				Interval mobility = mobilityIntervals.get(node);
+				for (int time = mobility.lbound; time <= mobility.ubound - node.getDelay() + 1; time++) {
 					// compute sum of forces (for node and time)
-					float forceSum = computeForces(schedule, node, time);
+					float forceSum;
+					try {
+						forceSum = calcForces(graph, schedule, node, time);
+					} catch (IllegalConstraintsException e) {
+						continue;
+					}
+					System.out.println("Node: " + node.id + ", time: " + time + ", force: " + forceSum);
 					// keep track of lowest force node
 					if (forceSum < minForce) {
 						minForceNode = node;
 						minForceTime = time;
 						minForce = forceSum;
+						System.out.println("New lowest force: Node " + node.id + " at time " + time + " with force " + forceSum);
 					}
 				}
 			}
 			
-			// Plan operation with smallest force
-			Interval slot = new Interval(minForceTime, minForceTime + minForceNode.getDelay());
+			// Plan node with smallest force, remove it from the queue
+			if (minForceNode == null) {
+				System.err.println("Impossible to schedule or invalid decision was made during scheduling. Check input and implementation");
+				return null;
+			}
+			Interval slot = new Interval(minForceTime, minForceTime + minForceNode.getDelay() - 1);
 			schedule.add(minForceNode, slot);
+			System.out.println("\tSCHEDULING Node " + minForceNode.id + " at time " + minForceTime);
 			queue.remove(minForceNode);
 		}
 		
@@ -75,57 +99,90 @@ public class FDS extends Scheduler {
 	}
 	
 	
-	private float computeForces(Schedule schedule, Node node, int time) {
-		// TODO implement
-		
+	private float calcForces(Graph graph, Schedule schedule, Node node, int time) throws IllegalConstraintsException {
+		float selfForce, predForceSum, succForceSum;
+
+		//System.out.println("Resource usage: " + resourceUsage);
+		//System.out.println("Calculating forces for node " + node + ", time step " + time);
+		if (node.id.equals("N5_ADD") && time == 4) {
+			//System.exit(0);
+		}
 		
 		// Self force
-		float q_node = resource_usage.get(node.getRT()).get(time);
-		float q_avg = 0;
-		Interval mobility = mobilityIntervals.get(node);
-		for (int i = mobility.lbound; i <= mobility.ubound; i++) {
-			q_avg += resource_usage.get(node.getRT()).get(i);
-		}
-		q_avg /= mobility.ubound - mobility.lbound - node.getDelay() + 1;
-		float selfForce = q_node - q_avg;
+		selfForce = calcSelfForce(node, time);
 		
-		// pseudo-plan node
-		
-		// Predecessor forces
-		float predForceSum = 0;
-		for (Node predecessor : node.allPredecessors().keySet()) {
-			float predForce = 0;
-			mobility = mobilityIntervals.get(node);
-			for (int i = mobility.lbound; i <= mobility.ubound; i++) {
-				predForce += resource_usage.get(node.getRT()).get(i);
-			}
-			predForce /= mobility.ubound - mobility.lbound - node.getDelay() + 1;
-		}
-		// Successor forces
-		float succForceSum = 0;
-		for (Node successor : node.allSuccessors().keySet()) {
+		// temporarily plan node
+		schedule.add(node, new Interval(time, time + node.getDelay() - 1));
+		// CAUTION: DO NOT CALL RETURN until node has been unplanned again
+		try {
+			Map<Node, Interval> tempMobilities = calcMobilities(graph, schedule);
+			Map<Node, Map<Integer, Float>> tempProbabilities = calcProbabilites(tempMobilities);
+			Map<RT, Map<Integer, Float>> tempResourceUsage = calcResourceUsage(graph, tempProbabilities);
 			
+			// Predecessor forces
+			predForceSum = calcNeighbourForceSum(node.predecessors(), tempMobilities, tempResourceUsage);
+			// Successor forces
+			succForceSum = calcNeighbourForceSum(node.successors(), tempMobilities, tempResourceUsage);
+		} finally {
+			// undo planning node
+			schedule.remove(node);
 		}
-		
+			
 		return selfForce + predForceSum + succForceSum;
 	}
 	
+	private float calcSelfForce(Node node, int time) {
+		float q_node = resourceUsage.get(node.getRT()).get(time);
+		float q_avg = 0;
+		Interval mobility = mobilityIntervals.get(node);
+		for (int i = mobility.lbound; i <= mobility.ubound; i++) {
+			q_avg += resourceUsage.get(node.getRT()).get(i);
+		}
+		q_avg /= mobility.ubound - mobility.lbound - node.getDelay() + 2;
+		return q_node - q_avg;
+	}
 	
-	private HashMap<Node, Interval> mobility(final Graph graph, final Schedule partialSchedule) {
+	private float calcNeighbourForceSum(Set<Node> nodes,
+			Map<Node, Interval> tempMobilities, Map<RT, Map<Integer, Float>> tempResourceUsage) {
+		float forceSum = 0;
+		for (Node node : nodes) {
+			float q_tilde = 0, q_avg = 0;
+			
+			// calculate neighbour's q^~_k,j
+			Interval mobility = tempMobilities.get(node);
+			for (int i = mobility.lbound; i <= mobility.ubound; i++) {
+				q_tilde += tempResourceUsage.get(node.getRT()).get(i);
+				// TODO wahrscheinlich falsch! neu machen
+			}
+			q_tilde /= mobility.ubound - mobility.lbound - node.getDelay() + 2;
+			
+			// calculate neighbour's q^-_k,j
+			mobility = mobilityIntervals.get(node);
+			for (int i = mobility.lbound; i <= mobility.ubound; i++) {
+				q_avg += resourceUsage.get(node.getRT()).get(i);
+			}
+			q_avg /= mobility.ubound - mobility.lbound - node.getDelay() + 2;
+			
+			// update sum
+			forceSum += q_tilde - q_avg;
+		}
+		return forceSum;
+	}
+	
+	
+	private Map<Node, Interval> calcMobilities(final Graph graph, final Schedule partialSchedule) throws IllegalConstraintsException {
 		HashMap<Node, Interval> mob = new HashMap<Node, Interval>();
 		
-		Schedule asap = new ASAP_Fixed().schedule(graph, partialSchedule);
+		Schedule asap = new ASAP_Fixed(lmax).schedule(graph, partialSchedule);
 		Schedule alap = new ALAP_Fixed(lmax).schedule(graph, partialSchedule);
 		
+		
 		for (Node n : graph.getNodes().keySet()) {
-			System.out.println(n);
-			System.out.println("ASAP: " + asap.slot(n));
-			System.out.println("ALAP: " + alap.slot(n));
-			System.out.println("Mobility: " + (alap.slot(n).lbound - asap.slot(n).lbound));
-			mob.put(n,
-					new Interval(
-							asap.slot(n).lbound,
-							alap.slot(n).ubound));
+			/*System.out.print("" + n.id + " - ");
+			System.out.print("ASAP: " + asap.slot(n) + ", ");
+			System.out.print("ALAP: " + alap.slot(n) + ", ");
+			System.out.println("Mobility: " + (alap.slot(n).lbound - asap.slot(n).lbound));*/
+			mob.put(n, new Interval(asap.slot(n).lbound, alap.slot(n).ubound));
 		}
 		
 		return mob;
@@ -133,94 +190,28 @@ public class FDS extends Scheduler {
 	
 
 	/**
-	 * 
-	 * TODO:It's wrong if
-	 * one operation has multiple Resources-> Every resource has the same prob.
-	 * TODO:check if ASAP and ALAP are correkt if for ex.Mul->Res1,Res2
-	 * 
+	 * TODO:check if ASAP and ALAP are correct if for ex.Mul->Res1,Res2
 	 * @param graph
 	 * @return
 	 */
-	/*@SuppressWarnings("unchecked")
-	private Map<RT, HashMap<Integer, Float>> calcResourceUsage(final Graph graph) {
-		HashMap<RT, HashMap<Integer, Float>> resUsage = new HashMap<RT, HashMap<Integer, Float>>();
+	private Map<RT, Map<Integer, Float>> calcResourceUsage(final Graph graph, Map<Node, Map<Integer, Float>> probabilities) {
+		Map<RT, Map<Integer, Float>> resUsage = new HashMap<RT, Map<Integer, Float>>();
+		/*for (Node n : graph.getNodes().keySet()) {
+			//System.out.println("Resource Usage for Node " + n + ": on " + resource_graph.getRes(n.getRT()));
+		}*/
+		// System.out.println("Resource " + resource + " on RT: " + resource_graph.getAllRes().get(resource));
 		for (Node n : graph.getNodes().keySet()) {
-			System.out.println("\nRESOURCEUSAGE for Node: " + n + " on " + resource_graph.getRes(n.getRT()));
-		}
-		// System.out.println("Resource " + resource + " on RT: " +
-		// resource_graph.getAllRes().get(resource));
-		for (Node n : graph.getNodes().keySet()) {
-			/**
-			 * 
-			 * if Node n works on one of the resources
-			 * 
-			 *
-			HashMap<Integer, Float> timeUsage = (HashMap<Integer, Float>) probabilities.get(n).clone();
-			/**
-			 * 
-			 * Add the probabilty of timeUsage of Node n to the resource Usage
-			 * 
-			 *
+			// if Node n works on one of the resources
+			Map<Integer, Float> timeUsage = probabilities.get(n);
+			// Add the probability of timeUsage of Node n to the resource Usage
 			if (!resUsage.containsKey(n.getRT())) {
 				resUsage.put(n.getRT(), timeUsage);
 			} else {
-				HashMap<Integer, Float> currentTimeUsage = resUsage.get(n.getRT());
-				/**
-				 * 
-				 * Do this for each timestep available in the Nodes Execution Probabilities
-				 * 
-				 * TODO: Possibly can be simplified, when each Node hast every timestep in
-				 * 
-				 * the Probabiliies Map. Currently each Node just has the prob. for his
-				 * mobilityInterval
-				 * 
-				 *
+				Map<Integer, Float> currentTimeUsage = resUsage.get(n.getRT());
+				// Do this for each time step available in the Nodes Execution Probabilities
+				// TODO: Possibly can be simplified, when each Node has every time step in the Probabilities Map. Currently each Node just has the probability for its mobilityInterval
 				timeUsage.forEach((t, prob) -> currentTimeUsage.merge(t, prob, (v1, v2) -> v1 + v2));
 				resUsage.put(n.getRT(), currentTimeUsage);
-			}
-		}
-		return resUsage;
-	}*/
-
-	
-	/**
-	 * TODO: It's wrong if one operation has multiple Resources -> Every resource has the same prob.
-	 * TODO: check if ASAP and ALAP are correkt if for ex. Mul -> Res1, Res2
-	 * @param graph
-	 * @return
-	 */
-	@SuppressWarnings("unchecked")
-	private Map<String, HashMap<Integer, Float>> calcResourceUsage(final Graph graph) {
-		HashMap<String, HashMap<Integer, Float>> resUsage = new HashMap<String, HashMap<Integer, Float>>();
-		for (Node n : graph.getNodes().keySet()) {
-			System.out.println("\nRESOURCEUSAGE for Node: " + n + " on " + resource_graph.getRes(n.getRT()));
-		}
-		
-		for (String resource : resource_graph.getAllRes().keySet()) {
-			System.out.println("Resource " + resource + " on RT: " + resource_graph.getAllRes().get(resource));
-			for (Node n : graph.getNodes().keySet()) {
-				/**
-				 * if Node n works on one of the resources
-				 */
-				if (resource_graph.getRes(n.getRT()).contains(resource)) {
-					HashMap<Integer, Float> timeUsage = (HashMap<Integer, Float>) probabilities.get(n).clone();
-					/**
-					 * Add the probabilty of timeUsage of Node n to the resource Usage
-					 */
-					if (!resUsage.containsKey(resource)) {
-						resUsage.put(resource, timeUsage);
-					} else {
-						HashMap<Integer, Float> currentTimeUsage = resUsage.get(resource);
-						/**
-						 * Do this for each timestep available in the Nodes Execution Probabilities
-						 * TODO: Possibly can be simplified, when each Node hast every timestep in
-						 * the Probabiliies Map. Currently each Node just has the prob. for his mobilityInterval
-						 */
-						timeUsage.forEach((t, prob) -> currentTimeUsage.merge(t, prob, (v1, v2) -> v1 + v2));
-						
-						resUsage.put(resource, currentTimeUsage);
-					}
-				}
 			}
 		}
 		return resUsage;
@@ -230,19 +221,19 @@ public class FDS extends Scheduler {
 	 * Calculate the Probability for each timestep a given Operation is executed in those timesteps
 	 * @return A Allocation of probability that a given Node is executed for each timestep the given Node can possibly been executed.
 	 */
-	private Map<Node, HashMap<Integer, Float>> calcProbabilites() {
+	private Map<Node, Map<Integer, Float>> calcProbabilites(Map<Node, Interval> mobilities) {
 		/**
-		 * Create Empty Maps, for Node <-> (timestep <-> probability) and
-		 * timestep <-> probability
+		 * Create Empty Maps, for Node <-> (time step <-> probability) and
+		 * time step <-> probability
 		 */
-		Map<Node, HashMap<Integer, Float>> probs = new HashMap<Node, HashMap<Integer, Float>>();
+		Map<Node, Map<Integer, Float>> probs = new HashMap<Node, Map<Integer, Float>>();
 		HashMap<Integer, Float> timeProb;
 		/*
 		 * iterate over every Node
 		 */
-		for (Node n : mobilityIntervals.keySet()) {
+		for (Node n : mobilities.keySet()) {
 			timeProb = new HashMap<Integer, Float>();
-			Interval range = mobilityIntervals.get(n);
+			Interval range = mobilities.get(n);
 			/**
 			 * Calculate the mobility (on how many different timesteps can an operation be executed)
 			 */
@@ -263,6 +254,14 @@ public class FDS extends Scheduler {
 					timeProb.put(i, probability);
 				}
 			}
+			
+			// fill 0 probability entries
+			/*for (int i = 0; i < lmax; i++) {
+				if (!timeProb.containsKey(i)) {
+					timeProb.put(i, 0f);
+				}
+			}*/
+			
 			probs.put(n, timeProb);
 		}
 		//TODO: When lmax is defined, the probs Map need to get converted into a map with timestep <-> (Node <-> prob)
@@ -275,19 +274,16 @@ public class FDS extends Scheduler {
 		for (Node n : mobilityIntervals.keySet()) {
 			System.out.print("Node " + n.id + ", Mobility: " + mobilityIntervals.get(n) + "\n");
 		}
-		
 		for (Node n : probabilities.keySet()) {
 			System.out.println("\nNode " + n);
 			for (Integer i : probabilities.get(n).keySet()) {
 				System.out.println("Timestep: " + i + " Prob: " + probabilities.get(n).get(i));
 			}
 		}
-		
-		
-		for (String res : resource_usage.keySet()) {
+		for (RT res : resourceUsage.keySet()) {
 			System.out.println("Resourge usage prob. on res: " + res);
-			for (Integer t : resource_usage.get(res).keySet()) {
-				System.out.println("In timestep " + t + ": " + resource_usage.get(res).get(t));
+			for (Integer t : resourceUsage.get(res).keySet()) {
+				System.out.println("In timestep " + t + ": " + resourceUsage.get(res).get(t));
 			}
 		}
 	}
