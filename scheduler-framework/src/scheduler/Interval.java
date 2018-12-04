@@ -57,6 +57,11 @@ public final class Interval {
 			ubound = u;
 		}
 	}
+	
+	public Interval(Node node, Interval mobility) {
+		lbound = mobility.lbound;
+		ubound = mobility.lbound + node.getDelay() - 1;
+	}
 
 	/**
 	 * Returns TRUE iff N is contained in the interval.
@@ -132,5 +137,9 @@ public final class Interval {
 	 */
 	public Integer length() {
 		return 1 + ubound - lbound;
+	}
+	
+	public Interval shiftOne() {
+		return shift(1);
 	}
 }

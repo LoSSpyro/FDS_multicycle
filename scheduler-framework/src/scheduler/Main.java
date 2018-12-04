@@ -99,7 +99,7 @@ public class Main {
 		
 		sched.draw("schedules/ALAP_" + args[0].substring(args[0].lastIndexOf("/")+1));
 
-		s = new FDS(rc, 13);
+		s = new FDS(13);
 		System.out.println("\n\n\nStarting FD scheduling\n");
 		Schedule fdsSched = s.schedule(g);
 		if (fdsSched == null) {

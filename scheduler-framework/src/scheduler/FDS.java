@@ -11,13 +11,10 @@ public class FDS extends Scheduler {
 	Map<Node, Map<Integer, Float>> probabilities;
 	Map<RT, Map<Integer, Float>> resourceUsage;
 	
-	private final int lmax; // 
+	private final int lmax; // number of cycles, not index of last cycle
 	
-	private final RC resource_graph;
-	
-	public FDS(final RC rc, int lmax) {
+	public FDS(int lmax) {
 		this.lmax = lmax;
-		resource_graph = rc;
 	}
 
 	@Override
@@ -73,7 +70,7 @@ public class FDS extends Scheduler {
 					} catch (IllegalConstraintsException e) {
 						continue;
 					}
-					System.out.println("Node: " + node.id + ", time: " + time + ", force: " + forceSum);
+					//System.out.println("Node: " + node.id + ", time: " + time + ", force: " + forceSum);
 					// keep track of lowest force node
 					if (forceSum < minForce) {
 						minForceNode = node;
@@ -116,13 +113,11 @@ public class FDS extends Scheduler {
 		// CAUTION: DO NOT CALL RETURN until node has been unplanned again
 		try {
 			Map<Node, Interval> tempMobilities = calcMobilities(graph, schedule);
-			Map<Node, Map<Integer, Float>> tempProbabilities = calcProbabilites(tempMobilities);
-			Map<RT, Map<Integer, Float>> tempResourceUsage = calcResourceUsage(graph, tempProbabilities);
 			
 			// Predecessor forces
-			predForceSum = calcNeighbourForceSum(node.predecessors(), tempMobilities, tempResourceUsage);
+			predForceSum = calcNeighbourForceSum(node.predecessors(), tempMobilities);
 			// Successor forces
-			succForceSum = calcNeighbourForceSum(node.successors(), tempMobilities, tempResourceUsage);
+			succForceSum = calcNeighbourForceSum(node.successors(), tempMobilities);
 		} finally {
 			// undo planning node
 			schedule.remove(node);
@@ -131,35 +126,49 @@ public class FDS extends Scheduler {
 		return selfForce + predForceSum + succForceSum;
 	}
 	
+	float q_avgOverInterval(Node node, int lbound, int ubound) {
+		return q_avgOverInterval(node, new Interval(lbound, ubound));
+	}
+	float q_avgOverInterval(Node node, int time) {
+		return q_avgOverInterval(node, new Interval(time, time + node.getDelay() - 1));
+	}
+	float q_avgOverInterval(Node node, Interval interval) {
+		float q_avg = 0;
+		for (int i = interval.lbound; i <= interval.ubound; i++) {
+			q_avg += resourceUsage.get(node.getRT()).get(i);
+		}
+		q_avg /= node.getDelay();
+		return q_avg;
+	}
+	
 	private float calcSelfForce(Node node, int time) {
-		float q_node = resourceUsage.get(node.getRT()).get(time);
+		float q_node = q_avgOverInterval(node, time);
+		
 		float q_avg = 0;
 		Interval mobility = mobilityIntervals.get(node);
-		for (int i = mobility.lbound; i <= mobility.ubound; i++) {
-			q_avg += resourceUsage.get(node.getRT()).get(i);
+		for (int i = mobility.lbound; i <= mobility.ubound - node.getDelay() + 1; i++) {
+			q_avg += q_avgOverInterval(node, i);
 		}
 		q_avg /= mobility.ubound - mobility.lbound - node.getDelay() + 2;
 		return q_node - q_avg;
 	}
 	
-	private float calcNeighbourForceSum(Set<Node> nodes,
-			Map<Node, Interval> tempMobilities, Map<RT, Map<Integer, Float>> tempResourceUsage) {
+	private float calcNeighbourForceSum(Set<Node> neighbours, Map<Node, Interval> tempMobilities) {
 		float forceSum = 0;
-		for (Node node : nodes) {
+		for (Node node : neighbours) {
 			float q_tilde = 0, q_avg = 0;
 			
 			// calculate neighbour's q^~_k,j
 			Interval mobility = tempMobilities.get(node);
-			for (int i = mobility.lbound; i <= mobility.ubound; i++) {
-				q_tilde += tempResourceUsage.get(node.getRT()).get(i);
-				// TODO wahrscheinlich falsch! neu machen
+			for (int i = mobility.lbound; i <= mobility.ubound - node.getDelay() + 1; i++) {
+				q_tilde += q_avgOverInterval(node, i);
 			}
 			q_tilde /= mobility.ubound - mobility.lbound - node.getDelay() + 2;
 			
 			// calculate neighbour's q^-_k,j
 			mobility = mobilityIntervals.get(node);
-			for (int i = mobility.lbound; i <= mobility.ubound; i++) {
-				q_avg += resourceUsage.get(node.getRT()).get(i);
+			for (int i = mobility.lbound; i <= mobility.ubound - node.getDelay() + 1; i++) {
+				q_avg += q_avgOverInterval(node, i);
 			}
 			q_avg /= mobility.ubound - mobility.lbound - node.getDelay() + 2;
 			
