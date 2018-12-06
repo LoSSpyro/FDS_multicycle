@@ -1,7 +1,9 @@
 package scheduler;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -58,7 +60,7 @@ public class FDS extends Scheduler {
 			
 			// Compute sum of forces of v_i for all time steps t in [tau_asap(v_i), tau_alap(v_i)];
 			Node minForceNode = null;
-			int minForceTime = 0;
+			List<Integer> minForceTimes = new ArrayList<Integer>(lmax);
 			float minForce = Float.MAX_VALUE;
 			for (Node node : queue) {
 				Interval mobility = mobilityIntervals.get(node);
@@ -70,13 +72,17 @@ public class FDS extends Scheduler {
 					} catch (IllegalConstraintsException e) {
 						continue;
 					}
-					//System.out.println("Node: " + node.id + ", time: " + time + ", force: " + forceSum);
+					System.out.println("Node " + node.id + " at time " + time + " has force " + forceSum);
 					// keep track of lowest force node
 					if (forceSum < minForce) {
 						minForceNode = node;
-						minForceTime = time;
+						minForceTimes.clear();
+						minForceTimes.add(time);
 						minForce = forceSum;
-						System.out.println("New lowest force: Node " + node.id + " at time " + time + " with force " + forceSum);
+						System.out.println("Found new lowest force: Node " + node.id + " at time " + time + " with force " + forceSum);
+					} else if (node == minForceNode && forceSum == minForce) {
+						minForceTimes.add(time);
+						System.out.println("Found new timestep with equal lowest force for node " + node.id + " at time " + time);
 					}
 				}
 			}
@@ -86,10 +92,19 @@ public class FDS extends Scheduler {
 				System.err.println("Impossible to schedule or invalid decision was made during scheduling. Check input and implementation");
 				return null;
 			}
-			Interval slot = new Interval(minForceTime, minForceTime + minForceNode.getDelay() - 1);
+			// Select time step in the middle
+			int timeStep = minForceTimes.get(minForceTimes.size() / 2);
+			System.out.println(minForceTimes);
+			Interval slot = new Interval(timeStep, timeStep + minForceNode.getDelay() - 1);
 			schedule.add(minForceNode, slot);
-			System.out.println("\tSCHEDULING Node " + minForceNode.id + " at time " + minForceTime);
+			System.out.println("\tSCHEDULING Node " + minForceNode.id + " at time " + timeStep);
 			queue.remove(minForceNode);
+			
+			/*if (minForceNode.id.equals("N3_MUL")) {
+				System.exit(0);
+				schedule.remove(minForceNode);
+				schedule.add(minForceNode, new Interval(8, 11));
+			}*/
 		}
 		
 		return schedule;
@@ -113,11 +128,13 @@ public class FDS extends Scheduler {
 		// CAUTION: DO NOT CALL RETURN until node has been unplanned again
 		try {
 			Map<Node, Interval> tempMobilities = calcMobilities(graph, schedule);
+			Map<Node, Map<Integer, Float>> tempProbabilities = calcProbabilites(tempMobilities);
+			Map<RT, Map<Integer, Float>> tempResourceUsage = calcResourceUsage(graph, tempProbabilities);
 			
 			// Predecessor forces
-			predForceSum = calcNeighbourForceSum(node.predecessors(), tempMobilities);
+			predForceSum = calcNeighbourForceSum(node.predecessors(), tempMobilities, tempResourceUsage);
 			// Successor forces
-			succForceSum = calcNeighbourForceSum(node.successors(), tempMobilities);
+			succForceSum = calcNeighbourForceSum(node.successors(), tempMobilities, tempResourceUsage);
 		} finally {
 			// undo planning node
 			schedule.remove(node);
@@ -126,34 +143,34 @@ public class FDS extends Scheduler {
 		return selfForce + predForceSum + succForceSum;
 	}
 	
-	float q_avgOverInterval(Node node, int lbound, int ubound) {
-		return q_avgOverInterval(node, new Interval(lbound, ubound));
+	float q_avgOverInterval(Node node, int lbound, int ubound, Map<RT, Map<Integer, Float>> tempResourceUsage) {
+		return q_avgOverInterval(node, new Interval(lbound, ubound), tempResourceUsage);
 	}
-	float q_avgOverInterval(Node node, int time) {
-		return q_avgOverInterval(node, new Interval(time, time + node.getDelay() - 1));
+	float q_avgOverInterval(Node node, int time,Map<RT, Map<Integer, Float>> tempResourceUsage) {
+		return q_avgOverInterval(node, new Interval(time, time + node.getDelay() - 1), tempResourceUsage);
 	}
-	float q_avgOverInterval(Node node, Interval interval) {
+	float q_avgOverInterval(Node node, Interval interval, Map<RT, Map<Integer, Float>> tempResourceUsage) {
 		float q_avg = 0;
 		for (int i = interval.lbound; i <= interval.ubound; i++) {
-			q_avg += resourceUsage.get(node.getRT()).get(i);
+			q_avg += tempResourceUsage.get(node.getRT()).get(i);
 		}
 		q_avg /= node.getDelay();
 		return q_avg;
 	}
 	
 	private float calcSelfForce(Node node, int time) {
-		float q_node = q_avgOverInterval(node, time);
+		float q_node = q_avgOverInterval(node, time, resourceUsage);
 		
 		float q_avg = 0;
 		Interval mobility = mobilityIntervals.get(node);
 		for (int i = mobility.lbound; i <= mobility.ubound - node.getDelay() + 1; i++) {
-			q_avg += q_avgOverInterval(node, i);
+			q_avg += q_avgOverInterval(node, i, resourceUsage);
 		}
 		q_avg /= mobility.ubound - mobility.lbound - node.getDelay() + 2;
 		return q_node - q_avg;
 	}
 	
-	private float calcNeighbourForceSum(Set<Node> neighbours, Map<Node, Interval> tempMobilities) {
+	private float calcNeighbourForceSum(Set<Node> neighbours, Map<Node, Interval> tempMobilities, Map<RT, Map<Integer, Float>> tempResourceUsage) {
 		float forceSum = 0;
 		for (Node node : neighbours) {
 			float q_tilde = 0, q_avg = 0;
@@ -161,14 +178,14 @@ public class FDS extends Scheduler {
 			// calculate neighbour's q^~_k,j
 			Interval mobility = tempMobilities.get(node);
 			for (int i = mobility.lbound; i <= mobility.ubound - node.getDelay() + 1; i++) {
-				q_tilde += q_avgOverInterval(node, i);
+				q_tilde += q_avgOverInterval(node, i, tempResourceUsage);
 			}
 			q_tilde /= mobility.ubound - mobility.lbound - node.getDelay() + 2;
 			
 			// calculate neighbour's q^-_k,j
 			mobility = mobilityIntervals.get(node);
 			for (int i = mobility.lbound; i <= mobility.ubound - node.getDelay() + 1; i++) {
-				q_avg += q_avgOverInterval(node, i);
+				q_avg += q_avgOverInterval(node, i, resourceUsage);
 			}
 			q_avg /= mobility.ubound - mobility.lbound - node.getDelay() + 2;
 			
@@ -265,11 +282,11 @@ public class FDS extends Scheduler {
 			}
 			
 			// fill 0 probability entries
-			/*for (int i = 0; i < lmax; i++) {
+			for (int i = 0; i < lmax; i++) {
 				if (!timeProb.containsKey(i)) {
 					timeProb.put(i, 0f);
 				}
-			}*/
+			}
 			
 			probs.put(n, timeProb);
 		}
