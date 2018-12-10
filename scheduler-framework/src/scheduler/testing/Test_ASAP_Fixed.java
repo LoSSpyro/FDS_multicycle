@@ -36,7 +36,14 @@ class Test_ASAP_Fixed {
 
 	@Test
 	void testASAPNoFixed() {
-		Schedule asap_fixed = new ASAP_Fixed().schedule(graph, partialSchedule);
+		Schedule asap_fixed;
+		try {
+			asap_fixed = new ASAP_Fixed().schedule(graph, partialSchedule);
+		} catch (IllegalConstraintsException e) {
+			e.printStackTrace();
+			fail("ASAP_Fixed threw an exception");
+			return;
+		}
 		
 		assertEquals(asap_fixed.length(), reference.length(),
 				"Schedule should be the same length as the reference ASAP schedule");
@@ -54,7 +61,14 @@ class Test_ASAP_Fixed {
 				break;
 			}
 		}
-		Schedule asap_fixed = new ASAP_Fixed().schedule(graph, partialSchedule);
+		Schedule asap_fixed;
+		try {
+			asap_fixed = new ASAP_Fixed().schedule(graph, partialSchedule);
+		} catch (IllegalConstraintsException e) {
+			e.printStackTrace();
+			fail("ASAP_Fixed threw an exception");
+			return;
+		}
 		
 		assertTrue(asap_fixed.length() >= reference.length(),
 				"Schedule cannot be shorter than the reference ASAP schedule");
@@ -75,7 +89,14 @@ class Test_ASAP_Fixed {
 				partialSchedule.add(candidate, new Interval(9, 9));
 			}
 		}
-		Schedule asap_fixed = new ASAP_Fixed().schedule(graph, partialSchedule);
+		Schedule asap_fixed;
+		try {
+			asap_fixed = new ASAP_Fixed().schedule(graph, partialSchedule);
+		} catch (IllegalConstraintsException e) {
+			e.printStackTrace();
+			fail("ASAP_Fixed threw an exception");
+			return;
+		}
 		
 		assertTrue(asap_fixed == null,
 				"Schedule was delivered where no legal schedule is possible");

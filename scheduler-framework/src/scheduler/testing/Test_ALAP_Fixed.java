@@ -36,7 +36,14 @@ class Test_ALAP_Fixed {
 
 	@Test
 	void testALAPNoFixed() {
-		Schedule alap_fixed = new ALAP_Fixed(10).schedule(graph, partialSchedule);
+		Schedule alap_fixed;
+		try {
+			alap_fixed = new ALAP_Fixed(10).schedule(graph, partialSchedule);
+		} catch (IllegalConstraintsException e) {
+			e.printStackTrace();
+			fail("ALAP_Fixed threw an exception");
+			return;
+		}
 		
 		assertEquals(alap_fixed.length(), reference.length(),
 				"Schedule should be the same length as the reference ALAP schedule");
@@ -54,7 +61,14 @@ class Test_ALAP_Fixed {
 				break;
 			}
 		}
-		Schedule alap_fixed = new ALAP_Fixed(10).schedule(graph, partialSchedule);
+		Schedule alap_fixed;
+		try {
+			alap_fixed = new ALAP_Fixed(10).schedule(graph, partialSchedule);
+		} catch (IllegalConstraintsException e) {
+			e.printStackTrace();
+			fail("ALAP_Fixed threw an exception");
+			return;
+		}
 		
 		assertTrue(alap_fixed.length() >= reference.length(),
 				"Schedule cannot be shorter than the reference ALAP schedule");
@@ -75,7 +89,14 @@ class Test_ALAP_Fixed {
 				partialSchedule.add(candidate, new Interval(9, 9));
 			}
 		}
-		Schedule alap_fixed = new ALAP_Fixed(10).schedule(graph, partialSchedule);
+		Schedule alap_fixed;
+		try {
+			alap_fixed = new ALAP_Fixed(10).schedule(graph, partialSchedule);
+		} catch (IllegalConstraintsException e) {
+			e.printStackTrace();
+			fail("ALAP_Fixed threw an exception");
+			return;
+		}
 		
 		assertTrue(alap_fixed == null,
 				"Schedule was delivered where no legal schedule is possible");
