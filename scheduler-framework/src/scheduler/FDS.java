@@ -40,7 +40,7 @@ public class FDS extends Scheduler {
 			}
 			// Compute all p_i,t and q_k,t
 			probabilities = calcProbabilites(mobilityIntervals);
-			resourceUsage = calcResourceUsage(graph, probabilities);
+			resourceUsage = calcResourceUsage(probabilities);
 			
 			// Evaluate Set K of all operations v_i with mobility_i > 0
 			Set<Node> removeFromQueue = new HashSet<Node>();
@@ -129,7 +129,7 @@ public class FDS extends Scheduler {
 		try {
 			Map<Node, Interval> tempMobilities = calcMobilities(graph, schedule);
 			Map<Node, Map<Integer, Float>> tempProbabilities = calcProbabilites(tempMobilities);
-			Map<RT, Map<Integer, Float>> tempResourceUsage = calcResourceUsage(graph, tempProbabilities);
+			Map<RT, Map<Integer, Float>> tempResourceUsage = calcResourceUsage(tempProbabilities);
 			
 			// Predecessor forces
 			predForceSum = calcNeighbourForceSum(node.predecessors(), tempMobilities, tempResourceUsage);
@@ -143,10 +143,7 @@ public class FDS extends Scheduler {
 		return selfForce + predForceSum + succForceSum;
 	}
 	
-	float q_avgOverInterval(Node node, int lbound, int ubound, Map<RT, Map<Integer, Float>> tempResourceUsage) {
-		return q_avgOverInterval(node, new Interval(lbound, ubound), tempResourceUsage);
-	}
-	float q_avgOverInterval(Node node, int time,Map<RT, Map<Integer, Float>> tempResourceUsage) {
+	float q_avgOverInterval(Node node, int time, Map<RT, Map<Integer, Float>> tempResourceUsage) {
 		return q_avgOverInterval(node, new Interval(time, time + node.getDelay() - 1), tempResourceUsage);
 	}
 	float q_avgOverInterval(Node node, Interval interval, Map<RT, Map<Integer, Float>> tempResourceUsage) {
@@ -178,6 +175,7 @@ public class FDS extends Scheduler {
 			// calculate neighbour's q^~_k,j
 			Interval mobility = tempMobilities.get(node);
 			for (int i = mobility.lbound; i <= mobility.ubound - node.getDelay() + 1; i++) {
+				// for every possible starting time
 				q_tilde += q_avgOverInterval(node, i, tempResourceUsage);
 			}
 			q_tilde /= mobility.ubound - mobility.lbound - node.getDelay() + 2;
@@ -220,7 +218,7 @@ public class FDS extends Scheduler {
 	 * @param graph
 	 * @return
 	 */
-	private Map<RT, Map<Integer, Float>> calcResourceUsage(final Graph graph, Map<Node, Map<Integer, Float>> probabilities) {
+	private Map<RT, Map<Integer, Float>> calcResourceUsageL(final Graph graph, Map<Node, Map<Integer, Float>> probabilities) {
 		Map<RT, Map<Integer, Float>> resUsage = new HashMap<RT, Map<Integer, Float>>();
 		/*for (Node n : graph.getNodes().keySet()) {
 			//System.out.println("Resource Usage for Node " + n + ": on " + resource_graph.getRes(n.getRT()));
@@ -247,7 +245,7 @@ public class FDS extends Scheduler {
 	 * Calculate the Probability for each timestep a given Operation is executed in those timesteps
 	 * @return A Allocation of probability that a given Node is executed for each timestep the given Node can possibly been executed.
 	 */
-	private Map<Node, Map<Integer, Float>> calcProbabilites(Map<Node, Interval> mobilities) {
+	private Map<Node, Map<Integer, Float>> calcProbabilitesL(Map<Node, Interval> mobilities) {
 		/**
 		 * Create Empty Maps, for Node <-> (time step <-> probability) and
 		 * time step <-> probability
@@ -294,6 +292,58 @@ public class FDS extends Scheduler {
 		//to get the pobabilities (0) for timesteps, that are not contained in the possible scheduled Intervals of a
 		//operation
 		return probs;
+	}
+	
+	private Map<Node, Map<Integer, Float>> calcProbabilites(Map<Node, Interval> mobilities) {
+		Map<Node, Map<Integer, Float>> probs = new HashMap<Node, Map<Integer, Float>>();
+		
+		for (Node node : mobilities.keySet()) {
+			Map<Integer, Float> nodeProbs = new HashMap<Integer, Float>();
+			Interval nodeInterval = mobilities.get(node);
+			float nodeMobility = nodeInterval.length() - node.getDelay() + 1;
+			
+			for (int t = 0; t < lmax; t++) {
+				// actual computation of p'_i,t with given i and t
+				float prob = 0f;
+				
+				for (int n = t - node.getDelay() + 1; n <= t; n++) {
+					// computation of p_i,n (start probability)
+					if (nodeInterval.lbound <= n && n <= nodeInterval.ubound - node.getDelay() + 1) {
+						prob += 1f;
+					}
+				}
+				prob /= nodeMobility + 1f;
+				
+				nodeProbs.put(t, prob);
+			}
+			
+			probs.put(node, nodeProbs);
+		}
+		
+		return probs;
+	}
+	
+	private Map<RT, Map<Integer, Float>> calcResourceUsage(Map<Node, Map<Integer, Float>> probabilities) {
+		Map<RT, Map<Integer, Float>> usages = new HashMap<RT, Map<Integer, Float>>();
+		
+		for (Node node : probabilities.keySet()) {
+			if (!usages.containsKey(node.getRT())) {
+				usages.put(node.getRT(), new HashMap<Integer, Float>());
+			}
+			Map<Integer, Float> typeUsages = usages.get(node.getRT());
+			
+			for (Integer t : probabilities.get(node).keySet()) {
+				if (!typeUsages.containsKey(t)) {
+					typeUsages.put(t, probabilities.get(node).get(t));
+				} else {
+					Float newUsage = typeUsages.get(t);
+					newUsage += probabilities.get(node).get(t);
+					typeUsages.put(t, newUsage);
+				}
+			}
+		}
+		
+		return usages;
 	}
 	
 	public void probDebug() {
