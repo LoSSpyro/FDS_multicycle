@@ -1,5 +1,10 @@
 package scheduler;
 
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
 public class Main {
 	
 	private static Graph g;
@@ -100,8 +105,18 @@ public class Main {
 		System.out.printf("cost = %s%n", sched.cost());
 		
 		sched.draw("schedules/ALAP_" + args[0].substring(args[0].lastIndexOf("/")+1));
-
-		s = new FDS(rc, 20);
-		s.schedule(g);
+		
+		
+		for (Node n : g) {
+			
+		}
+		s = new FDS(12);
+		sched = s.schedule(g);
+		System.out.printf("%nFDS%n%s%n", sched.diagnose());
+		System.out.printf("cost = %s%n", sched.cost());
+		
+		sched.draw("schedules/FDS_" + args[0].substring(args[0].lastIndexOf("/")+1));
+		
+		
 	}
 }

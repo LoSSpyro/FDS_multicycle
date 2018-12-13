@@ -21,7 +21,6 @@ public class ASAP extends Scheduler {
 		}
 
 		while (queue.size() > 0) {
-			System.out.println("Nodes in Queue: ");
 			for (Node queuedNode : queue.keySet()) {
 				System.out.print(queuedNode.id + " ");
 				System.out.print("[" + queue.get(queuedNode).lbound + ", " + queue.get(queuedNode).ubound + "); ");

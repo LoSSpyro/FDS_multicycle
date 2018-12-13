@@ -1,6 +1,9 @@
 package scheduler;
 
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
 
 /**
  * This represents an Interval type living on Integer.
@@ -10,7 +13,7 @@ import java.util.Comparator;
  * @author Michael Raitza
  * @version – 13.12.2011
  */
-public final class Interval {
+public final class Interval implements Iterable<Integer>{
 	/**
 	 * Lower bound of the interval
 	 */
@@ -109,6 +112,24 @@ public final class Interval {
 	public boolean lt(Interval i) {
 		return ubound.compareTo(i.lbound) < 0;
 	}
+	
+	/**
+	 * Returns the lowest Interval with duration d within this Interval
+	 * @param d
+	 * @return
+	 */
+	public Interval lowerBound(Integer d) {
+		return new Interval(lbound, lbound + d - 1);
+	}
+
+	/**
+	 * Returns the highest Interval with duration d within this Interval
+	 * @param d
+	 * @return
+	 */
+	public Interval upperBound(Integer d) {
+		return new Interval(ubound - d + 1, ubound);
+	}
 
 	/**
 	 * Returns a string representation of this interval of the form
@@ -132,5 +153,13 @@ public final class Interval {
 	 */
 	public Integer length() {
 		return 1 + ubound - lbound;
+	}
+
+	@Override
+	public Iterator<Integer> iterator() {
+		Set<Integer> ints =  new HashSet<Integer>();
+		for (Integer i = lbound; i <= ubound; i++)
+			ints.add(i);
+		return ints.iterator();
 	}
 }
