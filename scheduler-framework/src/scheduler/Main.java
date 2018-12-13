@@ -99,7 +99,7 @@ public class Main {
 		
 		sched.draw("schedules/ALAP_" + args[0].substring(args[0].lastIndexOf("/")+1));
 
-		s = new FDS(25);
+		s = new FDS(13);
 		System.out.println("\n\n\nStarting FD scheduling\n");
 		Schedule fdsSched = s.schedule(g);
 		if (fdsSched == null) {
@@ -107,7 +107,7 @@ public class Main {
 			return;
 		}
 		//fdsSched.draw("schedules/FDS_" + args[0].substring(args[0].lastIndexOf("/")+1));
-		System.out.println("\n\n\nCost: " + fdsSched.cost());
 		System.out.println(fdsSched.diagnose());
+		System.out.println("\n\n\nCost: " + fdsSched.cost());
 	}
 }

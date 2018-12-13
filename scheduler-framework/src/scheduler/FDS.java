@@ -143,12 +143,9 @@ public class FDS extends Scheduler {
 		return selfForce + predForceSum + succForceSum;
 	}
 	
-	float q_avgOverInterval(Node node, int time, Map<RT, Map<Integer, Float>> tempResourceUsage) {
-		return q_avgOverInterval(node, new Interval(time, time + node.getDelay() - 1), tempResourceUsage);
-	}
-	float q_avgOverInterval(Node node, Interval interval, Map<RT, Map<Integer, Float>> tempResourceUsage) {
+	float q_avgOverInterval(Node node, int startTime, Map<RT, Map<Integer, Float>> tempResourceUsage) {
 		float q_avg = 0;
-		for (int i = interval.lbound; i <= interval.ubound; i++) {
+		for (int i = startTime; i <= startTime + node.getDelay() - 1; i++) {
 			q_avg += tempResourceUsage.get(node.getRT()).get(i);
 		}
 		q_avg /= node.getDelay();
