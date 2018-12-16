@@ -60,7 +60,7 @@ public class FDS extends Scheduler {
 			
 			// Compute sum of forces of v_i for all time steps t in [tau_asap(v_i), tau_alap(v_i)];
 			Node minForceNode = null;
-			List<Integer> minForceTimes = new ArrayList<Integer>(lmax);
+			int minForceTime = Integer.MIN_VALUE;
 			float minForce = Float.MAX_VALUE;
 			for (Node node : queue) {
 				Interval mobility = mobilityIntervals.get(node);
@@ -76,13 +76,9 @@ public class FDS extends Scheduler {
 					// keep track of lowest force node
 					if (forceSum < minForce) {
 						minForceNode = node;
-						minForceTimes.clear();
-						minForceTimes.add(time);
+						minForceTime = time;
 						minForce = forceSum;
 						System.out.println("Found new lowest force: Node " + node.id + " at time " + time + " with force " + forceSum);
-					} else if (node == minForceNode && forceSum == minForce) {
-						minForceTimes.add(time);
-						System.out.println("Found new timestep with equal lowest force for node " + node.id + " at time " + time);
 					}
 				}
 			}
@@ -93,11 +89,9 @@ public class FDS extends Scheduler {
 				return null;
 			}
 			// Select time step in the middle
-			int timeStep = minForceTimes.get(minForceTimes.size() / 2);
-			System.out.println(minForceTimes);
-			Interval slot = new Interval(timeStep, timeStep + minForceNode.getDelay() - 1);
+			Interval slot = new Interval(minForceTime, minForceTime + minForceNode.getDelay() - 1);
 			schedule.add(minForceNode, slot);
-			System.out.println("\tSCHEDULING Node " + minForceNode.id + " at time " + timeStep);
+			System.out.println("\tSCHEDULING Node " + minForceNode.id + " at time " + minForceTime);
 			queue.remove(minForceNode);
 			
 			/*if (minForceNode.id.equals("N3_MUL")) {
