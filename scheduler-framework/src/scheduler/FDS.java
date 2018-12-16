@@ -169,7 +169,7 @@ public class FDS extends Scheduler {
 		for (Node node : neighbours) {
 			float q_tilde = 0, q_avg = 0;
 			
-			// calculate neighbour's q^~_k,j
+			// calculate neighbour's q~'_k,j
 			Interval mobility = tempMobilities.get(node);
 			for (int i = mobility.lbound; i <= mobility.ubound - node.getDelay() + 1; i++) {
 				// for every possible starting time
@@ -177,7 +177,7 @@ public class FDS extends Scheduler {
 			}
 			q_tilde /= mobility.ubound - mobility.lbound - node.getDelay() + 2;
 			
-			// calculate neighbour's q^-_k,j
+			// calculate neighbour's q-'_k,j
 			mobility = mobilityIntervals.get(node);
 			for (int i = mobility.lbound; i <= mobility.ubound - node.getDelay() + 1; i++) {
 				q_avg += q_avgOverInterval(node, i, resourceUsage);
@@ -207,88 +207,6 @@ public class FDS extends Scheduler {
 		}
 		
 		return mob;
-	}
-	
-
-	/**
-	 * TODO:check if ASAP and ALAP are correct if for ex.Mul->Res1,Res2
-	 * @param graph
-	 * @return
-	 */
-	private Map<RT, Map<Integer, Float>> calcResourceUsageL(final Graph graph, Map<Node, Map<Integer, Float>> probabilities) {
-		Map<RT, Map<Integer, Float>> resUsage = new HashMap<RT, Map<Integer, Float>>();
-		/*for (Node n : graph.getNodes().keySet()) {
-			//System.out.println("Resource Usage for Node " + n + ": on " + resource_graph.getRes(n.getRT()));
-		}*/
-		// System.out.println("Resource " + resource + " on RT: " + resource_graph.getAllRes().get(resource));
-		for (Node n : graph.getNodes().keySet()) {
-			// if Node n works on one of the resources
-			Map<Integer, Float> timeUsage = probabilities.get(n);
-			// Add the probability of timeUsage of Node n to the resource Usage
-			if (!resUsage.containsKey(n.getRT())) {
-				resUsage.put(n.getRT(), timeUsage);
-			} else {
-				Map<Integer, Float> currentTimeUsage = resUsage.get(n.getRT());
-				// Do this for each time step available in the Nodes Execution Probabilities
-				// TODO: Possibly can be simplified, when each Node has every time step in the Probabilities Map. Currently each Node just has the probability for its mobilityInterval
-				timeUsage.forEach((t, prob) -> currentTimeUsage.merge(t, prob, (v1, v2) -> v1 + v2));
-				resUsage.put(n.getRT(), currentTimeUsage);
-			}
-		}
-		return resUsage;
-	}
-	
-	/**
-	 * Calculate the Probability for each timestep a given Operation is executed in those timesteps
-	 * @return A Allocation of probability that a given Node is executed for each timestep the given Node can possibly been executed.
-	 */
-	private Map<Node, Map<Integer, Float>> calcProbabilitesL(Map<Node, Interval> mobilities) {
-		/**
-		 * Create Empty Maps, for Node <-> (time step <-> probability) and
-		 * time step <-> probability
-		 */
-		Map<Node, Map<Integer, Float>> probs = new HashMap<Node, Map<Integer, Float>>();
-		HashMap<Integer, Float> timeProb;
-		/*
-		 * iterate over every Node
-		 */
-		for (Node n : mobilities.keySet()) {
-			timeProb = new HashMap<Integer, Float>();
-			Interval range = mobilities.get(n);
-			/**
-			 * Calculate the mobility (on how many different timesteps can an operation be executed)
-			 */
-			int mobility = range.ubound - (range.lbound + n.getDelay()-1);
-			
-			float probability;
-			/**
-			 * For each Mobility the probability is calculated over the sum of 1/(mobility+1)
-			 */
-			for (Interval delay = new Interval(range.lbound, range.lbound + n.getDelay()-1); delay.ubound <= range.ubound; delay = delay.align_ubound(delay.ubound+1)) {
-				for (int i = delay.lbound; i <= delay.ubound; i++) {
-					probability = timeProb.containsKey(i) ? timeProb.get(i) : 0f;
-					/**
-					 * When the next possible Interval (in the mobility interval)
-					 * contains the operation, the Probability gets increased
-					 */
-					probability += (float) (1./(mobility+1));
-					timeProb.put(i, probability);
-				}
-			}
-			
-			// fill 0 probability entries
-			for (int i = 0; i < lmax; i++) {
-				if (!timeProb.containsKey(i)) {
-					timeProb.put(i, 0f);
-				}
-			}
-			
-			probs.put(n, timeProb);
-		}
-		//TODO: When lmax is defined, the probs Map need to get converted into a map with timestep <-> (Node <-> prob)
-		//to get the pobabilities (0) for timesteps, that are not contained in the possible scheduled Intervals of a
-		//operation
-		return probs;
 	}
 	
 	private Map<Node, Map<Integer, Float>> calcProbabilites(Map<Node, Interval> mobilities) {
@@ -341,24 +259,6 @@ public class FDS extends Scheduler {
 		}
 		
 		return usages;
-	}
-	
-	public void probDebug() {
-		for (Node n : mobilityIntervals.keySet()) {
-			System.out.print("Node " + n.id + ", Mobility: " + mobilityIntervals.get(n) + "\n");
-		}
-		for (Node n : probabilities.keySet()) {
-			System.out.println("\nNode " + n);
-			for (Integer i : probabilities.get(n).keySet()) {
-				System.out.println("Timestep: " + i + " Prob: " + probabilities.get(n).get(i));
-			}
-		}
-		for (RT res : resourceUsage.keySet()) {
-			System.out.println("Resourge usage prob. on res: " + res);
-			for (Integer t : resourceUsage.get(res).keySet()) {
-				System.out.println("In timestep " + t + ": " + resourceUsage.get(res).get(t));
-			}
-		}
 	}
 
 }
